@@ -1,0 +1,15 @@
+{
+  "namespace": "io.confluent.schema.messages",
+  "name": "Name",
+  "type": "record",
+  "fields": [
+    {
+      "name": "stringKey",
+      "type": "string"
+    },
+    {
+      "name": "intKey",
+      "type": "int"
+    }
+  ]
+}

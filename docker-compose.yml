@@ -1,0 +1,84 @@
+version: '3.5'
+
+networks:
+  kafka-cluster-py:
+
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    hostname: zookeeper
+    container_name: zookeeper
+    networks:
+      - kafka-cluster-py
+    ports:
+      - "0.0.0.0:2181:2181"
+    restart: unless-stopped
+
+  kafka-broker:
+    image: wurstmeister/kafka
+    hostname: kafka-broker
+    container_name: kafka-broker
+    networks:
+      - kafka-cluster-py
+    depends_on:
+      - zookeeper
+    ports:
+      - "0.0.0.0:9092:9092"
+    environment:
+      DOCKER_API_VERSION: 1.22
+      KAFKA_ADVERTISED_HOST_NAME: kafka-broker
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "messages:1:1"
+    restart: unless-stopped
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.0.1
+    hostname: schema-registry
+    container_name: schema-registry
+    networks:
+      - kafka-cluster-py
+    depends_on:
+      - kafka-broker
+    ports:
+      - "0.0.0.0:8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'kafka-broker:9092'
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+
+  producer:
+    build: .
+    image: kafka-application:latest
+    hostname: producer
+    container_name: producer
+    networks:
+      - kafka-cluster-py
+    depends_on:
+      - kafka-broker
+    environment:
+      DOCKER_API_VERSION: 1.22
+      BOOTSTRAP_SERVERS: kafka-broker:9092
+      TOPIC: messages
+      AVRO_SCHEMA_LOCATION: /avro/messages.avro
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    command: ["python3", "/app/producer.py"]
+
+  subscriber:
+    build: .
+    image: kafka-application:latest
+    hostname: subscriber
+    container_name: subscriber
+    networks:
+      - kafka-cluster-py
+    depends_on:
+      - kafka-broker
+    environment:
+      DOCKER_API_VERSION: 1.22
+      BOOTSTRAP_SERVERS: kafka-broker:9092
+      TOPIC: messages
+      AVRO_SCHEMA_LOCATION: /avro/messages.avro
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_GROUP_ID: the-consumer
+      KAFKA_POLL_TIMEOUT: "1.0"
+      KAFKA_POLL_MAX_RECS_PER_POLL: "5"
+    command: ["python3", "/app/subscriber.py"]
